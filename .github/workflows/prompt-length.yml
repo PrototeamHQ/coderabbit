@@ -1,0 +1,18 @@
+# Keeps the review instructions in .coderabbit.yaml within the bot's limit; see protobase-community/.github's
+# prompt-length workflow.
+# CodeRabbit allows 10,000 characters per custom pre-merge check and 20,000 per path instruction, so the
+# whole file stays under the smaller limit, and with it every instruction in it.
+name: prompt-length
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  prompt-length:
+    uses: protobase-community/.github/.github/workflows/prompt-length.yml@main # zizmor: ignore[unpinned-uses] main is the reviewed version
+    with:
+      files: |
+        .coderabbit.yaml 10000

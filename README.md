@@ -1,0 +1,3 @@
+# coderabbit
+
+The organization-wide [CodeRabbit](https://coderabbit.ai) review configuration for PrototeamHQ: CodeRabbit applies `.coderabbit.yaml` to every repository in the organization that has no `.coderabbit.yaml` of its own, and merges it into one that sets `inheritance: true`. It gives CodeRabbit the same task as the in-house AI review and reads that review's prompt live from [protobase-community/.github](https://github.com/protobase-community/.github/tree/main/.github/ai-review/prompts), along with each repository's own CONTRIBUTING.md and AGENTS.md. The prompt-length workflow keeps the file under 10,000 characters, the smallest limit of the instruction fields it holds, on every pull request.
