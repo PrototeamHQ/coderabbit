@@ -9,6 +9,7 @@ reviews:
       - ".*"
   auto_approvals:
     enabled: true
+    allow_author_approval: false
   sequence_diagrams: false
   estimate_code_review_effort: false
   suggested_labels: false
