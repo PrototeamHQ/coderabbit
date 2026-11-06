@@ -148,6 +148,8 @@ reviews:
           AGENTS.md on its base branch, including rules about the title, commit messages, docs and
           changelog. Fail and name each broken rule, with file:line, when it breaks one. Inconclusive when
           the repository has neither file.
+chat:
+  allow_non_org_members: false
 knowledge_base:
   code_guidelines:
     enabled: true
