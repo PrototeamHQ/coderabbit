@@ -7,6 +7,10 @@ reviews:
   auto_review:
     base_branches:
       - ".*"
+    # Review a pull request when it is opened, not on every push: each push costs a review from the hourly allowance.
+    # The in-house AI review's follow-up checks the fixes to its change request on later pushes.
+    # A repository whose pull requests merge on CodeRabbit's approval sets this back to true in its own file.
+    auto_incremental_review: false
   auto_approvals:
     enabled: true
     allow_author_approval: false
