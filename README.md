@@ -1,3 +1,7 @@
 # coderabbit
 
 The organization-wide [CodeRabbit](https://coderabbit.ai) review configuration for PrototeamHQ: CodeRabbit applies `.coderabbit.yaml` to every repository in the organization that has no `.coderabbit.yaml` of its own, and merges it into one that sets `inheritance: true`. It gives CodeRabbit the same task as the in-house AI review and reads that review's prompt live from [protobase-community/.github](https://github.com/protobase-community/.github/tree/main/.github/ai-review/prompts), along with each repository's own CONTRIBUTING.md and AGENTS.md. The prompt-length workflow keeps the file under 10,000 characters, the smallest limit of the instruction fields it holds, on every pull request.
+
+## Follow-up check
+
+CodeRabbit reviews a pull request once, when it is opened. The reusable [follow-up workflow](.github/workflows/follow-up.yml) checks the fixes to its change request on later pushes: a model gets only CodeRabbit's open requests, the pull request's title, description and commit messages, and the diff since the reviewed commit, and judges each request met or open. A pass dismisses the change request. It runs only for pull requests from a branch of the same repository whose author has write access, never for forks. To use it, copy [follow-up/caller.yml](follow-up/caller.yml) into the repository's `.github/workflows/` and give it the `SCW_PR_REVIEW_SECRET_KEY` secret. The tests run with `bun test` in `follow-up/`.

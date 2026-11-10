@@ -1,0 +1,71 @@
+# Checks the fixes to CodeRabbit's change request on a later push, so CodeRabbit can review each pull request once.
+# While its change request on an earlier commit stands, the follow-up asks a model whether each change it requested is
+# met on the head, from its requests, the pull request's title and description, the pull request's own commit messages
+# since that commit and the diff from it (follow-up/follow-up-run.ts). A request counts as met when the diff fixes it,
+# or when the code shown proves a stated reason that it does not apply. The check keeps one comment with the answer,
+# and a clean one records the change request lifted and dismisses it (follow-up/check.ts). The `verdict` output says
+# what it found: clean, findings, skipped (the model gave no usable answer or the input was too large), or none (the
+# check did not run, or no follow-up was due).
+#
+# The caller to copy into a repository is follow-up/caller.yml. It runs this workflow on pull_request_target, which
+# runs the caller from the base branch with the key in reach, and on CodeRabbit's submitted reviews, for a change
+# request that lands after the push that fixes it. That is safe because nothing from the pull request ever runs: this
+# job checks out only follow-up/ from this repository's main branch, installs nothing, and the script reads the pull
+# request through the GitHub API as data. The model gets no tools, and its answer reaches GitHub only as comment text
+# and through the verdict the script parses from it.
+#
+# The diff, the description and the findings are the author's to write, so a writer could steer the model. The check
+# therefore runs only for an open, ready pull request whose head is a branch of the caller's repository, never a fork,
+# by an author with write access (follow-up/gate.ts): the job's condition below stops forks before a runner starts,
+# and the script checks the author's access before it reads anything else or the key.
+name: coderabbit-follow-up
+
+on:
+  workflow_call:
+    secrets:
+      SCW_PR_REVIEW_SECRET_KEY:
+        description: The restricted Scaleway key the follow-up asks the model with.
+        required: true
+    outputs:
+      verdict:
+        description: clean, findings, skipped or none.
+        value: ${{ jobs.follow-up.outputs.verdict }}
+
+jobs:
+  follow-up:
+    if: >-
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.state == 'open' &&
+      !github.event.pull_request.draft &&
+      (github.event_name != 'pull_request_review' || github.event.review.user.login == 'coderabbitai[bot]')
+    runs-on: ubuntu-latest
+    # The comment and the dismissal take pull-requests: write; the diff, commits and files take contents: read.
+    permissions:
+      contents: read
+      pull-requests: write
+    # One ask takes up to about 13 minutes, with its one second ask about twice that.
+    timeout-minutes: 30
+    # A newer event checks the pull request's current head too, so it replaces an older run.
+    concurrency:
+      group: coderabbit-follow-up-${{ github.repository }}-${{ github.event.pull_request.number }}
+      cancel-in-progress: true
+    outputs:
+      verdict: ${{ steps.check.outputs.verdict }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: PrototeamHQ/coderabbit
+          ref: main
+          sparse-checkout: follow-up
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: 1.4.4
+      - id: check
+        working-directory: follow-up
+        env:
+          REPOSITORY: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          GITHUB_TOKEN: ${{ github.token }}
+          SCW_PR_REVIEW_SECRET_KEY: ${{ secrets.SCW_PR_REVIEW_SECRET_KEY }}
+        run: bun main.ts
