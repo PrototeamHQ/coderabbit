@@ -7,12 +7,18 @@
 # what it found: clean, findings, skipped (the model gave no usable answer or the input was too large), or none (the
 # check did not run, or no follow-up was due).
 #
+# When no change request stands but CodeRabbit's last verdict is an approval of an earlier commit, the follow-up asks
+# whether the diff from the newest commit CodeRabbit reviewed in full (its own check run concluded success there) adds a
+# real problem, and whether the change requests the approval lifted are met, as that approval may rest on the author's
+# word alone (follow-up/after-approval-run.ts). It writes the same verdict line, dismisses nothing, and asks once per
+# head: a later event on the same head keeps the verdict.
+#
 # The caller to copy into a repository is follow-up/caller.yml. It runs this workflow on pull_request_target, which
-# runs the caller from the base branch with the key in reach, and on CodeRabbit's submitted reviews, for a change
-# request that lands after the push that fixes it. That is safe because nothing from the pull request ever runs: this
-# job checks out only follow-up/ from this repository's main branch, installs nothing, and the script reads the pull
-# request through the GitHub API as data. The model gets no tools, and its answer reaches GitHub only as comment text
-# and through the verdict the script parses from it.
+# runs the caller from the base branch with the key in reach, and on CodeRabbit's submitted verdicts, for a change
+# request that lands after the push that fixes it or an approval that lands after a later push. That is safe because
+# nothing from the pull request ever runs: this job checks out only follow-up/ from this repository's main branch,
+# installs nothing, and the script reads the pull request through the GitHub API as data. The model gets no tools,
+# and its answer reaches GitHub only as comment text and through the verdict the script parses from it.
 #
 # The diff, the description and the findings are the author's to write, so a writer could steer the model. The check
 # therefore runs only for an open, ready pull request whose head is a branch of the caller's repository, never a fork,
@@ -37,15 +43,19 @@ jobs:
       github.event.pull_request.head.repo.full_name == github.repository &&
       github.event.pull_request.state == 'open' &&
       !github.event.pull_request.draft &&
-      (github.event_name != 'pull_request_review' || github.event.review.user.login == 'coderabbitai[bot]')
+      (github.event_name != 'pull_request_review' || (github.event.review.user.login == 'coderabbitai[bot]' && github.event.review.state != 'commented'))
     runs-on: ubuntu-latest
-    # The comment and the dismissal take pull-requests: write; the diff, commits and files take contents: read.
+    # The comment and the dismissal take pull-requests: write; the diff, commits and files take contents: read;
+    # CodeRabbit's check runs take checks: read. A caller must grant each of them.
     permissions:
+      checks: read
       contents: read
       pull-requests: write
     # One ask takes up to about 13 minutes, with its one second ask about twice that.
     timeout-minutes: 30
-    # A newer event checks the pull request's current head too, so it replaces an older run.
+    # A newer event checks the pull request's current head too, so it replaces an older run. CodeRabbit's replies in its
+    # review threads are reviews with no verdict, so the condition above skips them; a skipped job takes no part in the
+    # group and cancels nothing, so a reply no longer cancels the run of the push before it.
     concurrency:
       group: coderabbit-follow-up-${{ github.repository }}-${{ github.event.pull_request.number }}
       cancel-in-progress: true

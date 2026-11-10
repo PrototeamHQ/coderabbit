@@ -20,7 +20,8 @@ const repository = required("REPOSITORY")
 const number = Number(required("PR_NUMBER"))
 const github = gitHub(required("GITHUB_TOKEN"), repository)
 // Fixed text with nothing of the pull request in it.
-const system = await Bun.file(join(import.meta.dir, "prompts", "follow-up.md")).text()
+const prompt = (name: string) => Bun.file(join(import.meta.dir, "prompts", `${name}.md`)).text()
+const prompts = { followUp: await prompt("follow-up"), afterApproval: await prompt("after-approval") }
 
 // The usage line, and for an empty answer the end of the reasoning, go to the job log only, never to the comment.
 function logAsk(completion: Completion) {
@@ -30,7 +31,7 @@ function logAsk(completion: Completion) {
 }
 
 // The key is read only once the gate let the pull request through and a follow-up is due.
-async function ask(user: string) {
+const asking = (system: string) => async (user: string) => {
   console.log(`Follow-up, ${Math.round(user.length / 1000)}k characters:`)
   const { completion, emptyFirst } = await askOnce(required("SCW_PR_REVIEW_SECRET_KEY"), system, user)
   if (emptyFirst) {
@@ -41,5 +42,5 @@ async function ask(user: string) {
   return completion
 }
 
-const verdict = await runCheck(github, ask, repository, number)
+const verdict = await runCheck(github, { followUp: asking(prompts.followUp), afterApproval: asking(prompts.afterApproval) }, repository, number)
 if (process.env.GITHUB_OUTPUT) await appendFile(process.env.GITHUB_OUTPUT, `verdict=${verdict}\n`)

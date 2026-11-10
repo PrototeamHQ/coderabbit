@@ -1,5 +1,6 @@
 // The GitHub REST calls the follow-up check makes. They read the pull request as data; the check writes only its one
 // comment and, after a follow-up that found every requested change met, the dismissal of those change requests.
+import type { CheckRun } from "./approval"
 import type { Dismissal, Review } from "./change-requests"
 import type { ChangedFile } from "./changed-files"
 import type { FollowUpFile } from "./follow-up"
@@ -17,6 +18,7 @@ export type PullRequest = {
   user: { login: string }
   // repo is null when the pull request came from a fork that was deleted since.
   head: { sha: string; repo: { full_name: string } | null }
+  base: { sha: string }
 }
 
 // `retryPause` is the fixed wait in milliseconds before a GET that met a transient server error is sent once more.
@@ -89,10 +91,17 @@ export function gitHub(token: string, repository: string, retryPause = 2000) {
       return paginate<ChangedFile>(`/repos/${repository}/pulls/${number}/files`, maxItems)
     },
 
-    // The files changed from the merge base of `from` and `to` up to `to`, with their patches; GitHub lists at most 300.
+    // The files changed from the merge base of `from` and `to` up to `to`, with their patches, and the commits in
+    // between; GitHub lists at most 300 files.
     async compare(from: string, to: string) {
       const path = `/repos/${repository}/compare/${encodeURIComponent(from)}...${encodeURIComponent(to)}`
-      return (await (await request(path)).json()) as { status: string; files: FollowUpFile[] }
+      return (await (await request(path)).json()) as { status: string; files: FollowUpFile[]; commits: { sha: string }[] }
+    },
+
+    // The check runs of that name on a commit. It takes the checks: read permission.
+    async checkRuns(sha: string, name: string) {
+      const path = `/repos/${repository}/commits/${encodeURIComponent(sha)}/check-runs?check_name=${encodeURIComponent(name)}&per_page=100`
+      return ((await (await request(path)).json()) as { check_runs: CheckRun[] }).check_runs
     },
 
     // Every review of the pull request, oldest first.

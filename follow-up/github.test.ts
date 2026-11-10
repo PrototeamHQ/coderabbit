@@ -101,6 +101,13 @@ describe("the follow-up's calls", () => {
     expect(JSON.parse(body)).toEqual({ message: "Met.", event: "DISMISS" })
   })
 
+  test("reads a commit's check runs of one name", async () => {
+    const run = { name: "CodeRabbit", status: "completed", conclusion: "success", app: { slug: "coderabbitai" } }
+    answer([200], { total_count: 1, check_runs: [run] })
+    expect(await github().checkRuns("abc", "CodeRabbit")).toEqual([run])
+    expect(sent[0].url).toBe("https://api.github.com/repos/o/r/commits/abc/check-runs?check_name=CodeRabbit&per_page=100")
+  })
+
   test("finds its own comment by the marker, only from github-actions", async () => {
     const comments = [
       { id: 1, body: "<!-- coderabbit-follow-up -->\nforged", user: { login: "someone" } },

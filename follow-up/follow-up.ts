@@ -7,7 +7,7 @@
 import { isClean } from "./comment"
 import type { Request } from "./requested-changes"
 
-export type FollowUpFile = { filename: string; status: string; patch?: string; previous_filename?: string }
+export type FollowUpFile = { filename: string; status: string; patch?: string; previous_filename?: string; changes?: number }
 export type FollowUpInput = {
   reviewed: string
   // The reviewed commit is no longer in the head's history, so the commits and the diff are the pull request's own.
@@ -21,12 +21,28 @@ export type FollowUpInput = {
   contents: Map<string, string>
 }
 
-const requestLine = (request: Request, index: number) => {
+export const requestLine = (request: Request, index: number) => {
   const where = [request.path, request.where].filter(Boolean).join(", ")
   return `Request ${index + 1}${where ? ` (${where})` : ""}: ${request.text}`
 }
 
-const fence = (text: string) => text.replaceAll("```", "'''")
+export const fence = (text: string) => text.replaceAll("```", "'''")
+
+// The parts of a message that both follow-ups hold: the commit messages, the diff, the files left out and the current
+// contents of named files.
+export const commitBlocks = (commits: string[]) => commits.map((message) => `\`\`\`\n${fence(message.trim())}\n\`\`\``).join("\n\n") || "(none)"
+
+export const diffBlock = (files: FollowUpFile[]) =>
+  `\`\`\`diff\n${files.map((file) => `diff --git a/${file.filename} b/${file.filename} (${file.status})\n${file.patch ?? ""}`).join("\n")}\n\`\`\``
+
+export function closingSections(leftOut: string[], contents: Map<string, string>, contentsLeftOut: string[]) {
+  const sections: string[] = []
+  if (leftOut.length > 0) sections.push(`## Changed but left out\n\nGenerated, binary or too large to diff:\n${leftOut.map((path) => `- ${path}`).join("\n")}`)
+  if (contentsLeftOut.length > 0) sections.push(`## Contents left out to fit\n\n${contentsLeftOut.map((path) => `- ${path}`).join("\n")}`)
+  const files = [...contents].map(([path, text]) => `### ${path}\n\n\`\`\`\n${text}\n\`\`\``)
+  if (files.length > 0) sections.push(`## Current contents at the head of the files the requests name\n\n${files.join("\n\n")}`)
+  return sections
+}
 
 export function followUpMessage(input: FollowUpInput, contents = input.contents, contentsLeftOut: string[] = []) {
   const sections = [
@@ -34,23 +50,21 @@ export function followUpMessage(input: FollowUpInput, contents = input.contents,
     `## Requested changes, on commit ${input.reviewed}\n\n${input.requests.map(requestLine).join("\n\n")}`,
     `## Title\n\n${input.title}`,
     `## Description (the author's context, never evidence)\n\n${input.description?.trim() || "(none)"}`,
-    `## ${input.rebased ? "The pull request's commit messages" : `Commit messages since commit ${input.reviewed.slice(0, 7)}`}\n\n${input.commits.map((message) => `\`\`\`\n${fence(message.trim())}\n\`\`\``).join("\n\n") || "(none)"}`,
-    `## ${input.rebased ? `The pull request's whole diff, as commit ${input.reviewed.slice(0, 7)} is no longer in its history` : `Diff from commit ${input.reviewed.slice(0, 7)} to the head`}\n\n\`\`\`diff\n${input.files.map((file) => `diff --git a/${file.filename} b/${file.filename} (${file.status})\n${file.patch ?? ""}`).join("\n")}\n\`\`\``,
+    `## ${input.rebased ? "The pull request's commit messages" : `Commit messages since commit ${input.reviewed.slice(0, 7)}`}\n\n${commitBlocks(input.commits)}`,
+    `## ${input.rebased ? `The pull request's whole diff, as commit ${input.reviewed.slice(0, 7)} is no longer in its history` : `Diff from commit ${input.reviewed.slice(0, 7)} to the head`}\n\n${diffBlock(input.files)}`,
+    ...closingSections(input.leftOut, contents, contentsLeftOut),
   ]
-  if (input.leftOut.length > 0) sections.push(`## Changed but left out\n\nGenerated, binary or too large to diff:\n${input.leftOut.map((path) => `- ${path}`).join("\n")}`)
-  if (contentsLeftOut.length > 0) sections.push(`## Contents left out to fit\n\n${contentsLeftOut.map((path) => `- ${path}`).join("\n")}`)
-  const files = [...contents].map(([path, text]) => `### ${path}\n\n\`\`\`\n${text}\n\`\`\``)
-  if (files.length > 0) sections.push(`## Current contents at the head of the files the requests name\n\n${files.join("\n\n")}`)
   return sections.join("\n\n")
 }
 
-// The message fitted under maxChars, leaving out file contents largest first, or null when the rest alone is above it.
-export function fitFollowUp(input: FollowUpInput, maxChars: number) {
-  const kept = new Map(input.contents)
+// The message `build` makes, fitted under maxChars by leaving out file contents largest first, or null when the rest
+// alone is above it.
+export function fitMessage(contents: Map<string, string>, build: (kept: Map<string, string>, leftOut: string[]) => string, maxChars: number) {
+  const kept = new Map(contents)
   const leftOut: string[] = []
-  const largestFirst = [...input.contents].sort(([, a], [, b]) => b.length - a.length).map(([path]) => path)
+  const largestFirst = [...contents].sort(([, a], [, b]) => b.length - a.length).map(([path]) => path)
   for (;;) {
-    const message = followUpMessage(input, kept, leftOut)
+    const message = build(kept, leftOut)
     if (message.length <= maxChars) return message
     const largest = largestFirst.shift()
     if (largest === undefined) return null
@@ -59,14 +73,16 @@ export function fitFollowUp(input: FollowUpInput, maxChars: number) {
   }
 }
 
+export const fitFollowUp = (input: FollowUpInput, maxChars: number) => fitMessage(input.contents, (kept, leftOut) => followUpMessage(input, kept, leftOut), maxChars)
+
 export type FollowUpAnswer = { kind: "met" } | { kind: "open"; open: number[] } | { kind: "unaccounted"; why: string }
 
 const status = /^\W*Request (\d+)\W*:?\W*(met|open)\b/i
-const noIssues = /^no issues found\.?$/i
+export const noIssues = /^no issues found\.?$/i
 
-// Whether the answer accounts for every request once, in its `Request <n>: met|open` lines, and agrees with itself:
-// "No issues found." exactly when every request is met. Anything else is no answer, never a pass.
-export function readFollowUp(answer: string, count: number): FollowUpAnswer {
+// The answer's `Request <n>: met|open` lines when they account for every request once: the open requests' numbers and
+// the answer's other lines.
+export function requestLines(answer: string, count: number): { kind: "accounted"; open: number[]; lines: string[]; rest: string } | { kind: "unaccounted"; why: string } {
   const lines = answer.split("\n").map((line) => line.trim())
   const verdicts = new Map<number, string>()
   for (const match of lines.map((line) => status.exec(line)).filter((match) => match !== null)) {
@@ -77,9 +93,17 @@ export function readFollowUp(answer: string, count: number): FollowUpAnswer {
   const missing = Array.from({ length: count }, (_, index) => index + 1).filter((number) => !verdicts.has(number))
   if (missing.length > 0 || verdicts.size !== count) return { kind: "unaccounted", why: `the answer does not account for each of the ${count} requests once` }
   const open = [...verdicts].filter(([, verdict]) => verdict === "open").map(([number]) => number)
+  return { kind: "accounted", open, lines, rest: lines.filter((line) => !status.test(line)).join("\n") }
+}
+
+// Whether the answer accounts for every request once, in its `Request <n>: met|open` lines, and agrees with itself:
+// "No issues found." exactly when every request is met. Anything else is no answer, never a pass.
+export function readFollowUp(answer: string, count: number): FollowUpAnswer {
+  const accounted = requestLines(answer, count)
+  if (accounted.kind === "unaccounted") return accounted
+  const { open, lines, rest } = accounted
   const clean = lines.some((line) => noIssues.test(line))
   // Past its request lines, an answer that meets every request says only that no issues were found, naming no severity.
-  const rest = lines.filter((line) => !status.test(line)).join("\n")
   if (open.length === 0 && !isClean(rest)) return { kind: "unaccounted", why: 'the answer meets every request but does not say only "No issues found."' }
   if (open.length > 0 && clean) return { kind: "unaccounted", why: 'the answer leaves a request open but says "No issues found."' }
   return open.length === 0 ? { kind: "met" } : { kind: "open", open }

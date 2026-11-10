@@ -13,9 +13,9 @@ export type Review = { id: number; user: { login: string } | null; state: string
 // A review_dismissed event of the issue timeline: which review was dismissed, and the state it had before.
 export type Dismissal = { reviewId: number; state: string }
 
-const isVerdict = (review: Review) => review.state === "APPROVED" || review.state === "CHANGES_REQUESTED" || review.state === "DISMISSED"
+export const isVerdict = (review: Review) => review.state === "APPROVED" || review.state === "CHANGES_REQUESTED" || review.state === "DISMISSED"
 
-const isReviewers = (review: Review) => review.user?.login === reviewer.login
+export const isReviewers = (review: Review) => review.user?.login === reviewer.login
 
 // The reviewer's change requests that stand, oldest first: each since its last approval, open or dismissed, whose id
 // `lifted` does not hold. A dismissed review that was an approval is none.
