@@ -9,6 +9,7 @@ const pullRequest = (change: Partial<PullRequest> = {}): PullRequest => ({
   draft: false,
   user: { login: "ann" },
   head: { sha: "b".repeat(40), repo: { full_name: "o/r" } },
+  base: { sha: "f".repeat(40) },
   ...change,
 })
 

@@ -6,11 +6,12 @@ name: coderabbit-follow-up
 on:
   pull_request_target: # zizmor: ignore[dangerous-triggers] nothing from the pull request runs
     types: [synchronize, reopened, ready_for_review]
-  # A change request that lands after the push that fixes it.
+  # A change request that lands after the push that fixes it, or an approval that lands after a later push.
   pull_request_review:
     types: [submitted]
 
 permissions:
+  checks: read
   contents: read
   pull-requests: write
 

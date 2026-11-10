@@ -24,8 +24,14 @@ export const limits = {
   maxCommentChars: 60_000,
 }
 
-// The reviewer whose change requests the check follows up: its account login in REST, and the name the comments use.
+// The reviewer whose change requests the check follows up: its account login in REST, the name the comments use, and
+// the GitHub App and name of the check run it writes on each commit, which concludes success only on a commit it
+// reviewed in full. That holds only while its incremental reviews are off (.coderabbit.yaml): with them on, success
+// would follow every push, also one it approved on the author's word. The merge workflow that reads the verdict tells
+// a finished review apart by the same app, name and conclusion.
 export const reviewer = {
   name: "CodeRabbit",
   login: "coderabbitai[bot]",
+  app: "coderabbitai",
+  check: "CodeRabbit",
 }

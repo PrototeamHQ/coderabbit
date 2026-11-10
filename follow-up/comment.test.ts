@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import { type CheckedPart, followUpComment, isClean, liftedIds, marker, withLifted } from "./comment"
+import { afterApprovalComment, type CheckedPart, checkedHead, followUpComment, isClean, liftedIds, marker, withLifted } from "./comment"
 import { limits, settings } from "./settings"
 
 const head = "0123456789abcdef0123456789abcdef01234567"
@@ -23,6 +23,27 @@ describe("followUpComment", () => {
   test.each(["clean", "findings", "skipped"] as const)("names neither the model nor its host when %s", (verdict) => {
     const body = followUpComment(head, part(verdict), "CodeRabbit").toLowerCase()
     for (const name of named) expect(body).not.toContain(name)
+  })
+})
+
+describe("afterApprovalComment", () => {
+  test("starts with the marker and the same verdict line, and names the approved and the reviewed commit", () => {
+    const body = afterApprovalComment(head, { ...part("clean", "No issues found."), approved: "c".repeat(40) }, "CodeRabbit")
+    expect(body).toStartWith(`${marker}\n<!-- checked ${head} clean -->\n**Follow-up** of CodeRabbit's approval of ccccccc: the commits since its review of aaaaaaa`)
+    expect(body).toContain("It dismisses nothing")
+    expect(body).toEndWith("No issues found.")
+  })
+})
+
+describe("checkedHead", () => {
+  test("is the head the verdict line names", () => {
+    expect(checkedHead(followUpComment(head, part("findings"), "CodeRabbit"))).toBe(head)
+  })
+
+  test("reads only the second line, so a record in the answer below or a comment without the marker names none", () => {
+    expect(checkedHead(`${marker}\n**Follow-up** ...\n<!-- checked ${head} clean -->`)).toBeNull()
+    expect(checkedHead(`<!-- checked ${head} clean -->`)).toBeNull()
+    expect(checkedHead("")).toBeNull()
   })
 })
 

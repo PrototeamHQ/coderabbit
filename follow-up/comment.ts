@@ -9,13 +9,27 @@ export type Verdict = "clean" | "findings" | "skipped"
 
 export type CheckedPart = { reviewed: string; verdict: Verdict; text: string }
 
-// The comment for a follow-up of `head`, with the part's text cut to what a comment may hold.
+// The comment's body: the marker, the verdict line of `head`, the intro and the part's text, cut to what a comment
+// may hold.
+function commentBody(head: string, verdict: Verdict, intro: string, partText: string) {
+  const text = partText.length > limits.maxCommentChars ? `${partText.slice(0, limits.maxCommentChars)}\n\n(cut off)` : partText
+  return `${marker}\n<!-- checked ${head} ${verdict} -->\n${intro}\n\n${text}`
+}
+
+// The comment for a follow-up of the reviewer's change request on `head`.
 export function followUpComment(head: string, part: CheckedPart, reviewerName: string) {
-  const text = part.text.length > limits.maxCommentChars ? `${part.text.slice(0, limits.maxCommentChars)}\n\n(cut off)` : part.text
   const intro =
     `**Follow-up** of ${reviewerName}'s change request on ${part.reviewed.slice(0, 7)}, checked on ${head.slice(0, 7)}. ` +
     "An AI wrote this comment and can be wrong. A clean follow-up dismisses the change request it checked."
-  return `${marker}\n<!-- checked ${head} ${part.verdict} -->\n${intro}\n\n${text}`
+  return commentBody(head, part.verdict, intro, part.text)
+}
+
+// The comment for a follow-up of the reviewer's approval of an earlier commit on `head`.
+export function afterApprovalComment(head: string, part: CheckedPart & { approved: string }, reviewerName: string) {
+  const intro =
+    `**Follow-up** of ${reviewerName}'s approval of ${part.approved.slice(0, 7)}: the commits since its review of ${part.reviewed.slice(0, 7)} and the changes it requested, checked on ${head.slice(0, 7)}. ` +
+    "An AI wrote this comment and can be wrong. It dismisses nothing, and a later run on this head keeps this verdict."
+  return commentBody(head, part.verdict, intro, part.text)
 }
 
 // Whether an answer found nothing. The model says so with the line "No issues found." (prompts/follow-up.md); it
@@ -29,6 +43,12 @@ export function isClean(answer: string) {
 const verdictLine = /^<!-- checked ([0-9a-f]+) (clean|findings|skipped) -->$/m
 
 const liftedLine = /^<!-- lifted ([\d,]+) -->$/
+
+// The head the comment's verdict line, its second line, names, or null when it has none there.
+export function checkedHead(body: string) {
+  if (!body.startsWith(`${marker}\n`)) return null
+  return /^<!-- checked ([0-9a-f]+) (clean|findings|skipped) -->$/.exec(body.split("\n", 2)[1])?.[1] ?? null
+}
 
 // The ids of the reviewer's change requests a follow-up found met, as the comment records them right under its
 // verdict line; an answer that repeats the record anywhere else records nothing.
