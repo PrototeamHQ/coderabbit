@@ -140,6 +140,36 @@ reviews:
         instructions.
         For each finding give its severity, file:line, what is wrong, a concrete failure (what input or use
         breaks and how), and a fix.
+    # Pull requests merge on CodeRabbit's approval, so a change that weakens what checks the code must
+    # block it: each finding below is Major or higher, which requests changes instead of approving.
+    - path: "{.github/**,**/action.{yml,yaml},.gitlab-ci.yml,.circleci/**,**/Jenkinsfile,**/.pre-commit-config.yaml}"
+      instructions: |
+        This file is CI or check config. Raise a Major finding, naming the check it weakens, for any of:
+        - a job or step that runs a check is removed, skipped or commented out, or `if:` makes it never run
+          or always pass (`if: false`, `|| true`, `exit 0`);
+        - `continue-on-error` or an ignored exit code on a check;
+        - narrowed `on:` triggers, `branches`, `paths` or `paths-ignore` that stop a check running on pull
+          requests it covered before;
+        - widened `permissions`, or a job without a `permissions` block that inherits write access;
+        - `pull_request_target` or `workflow_run` that checks out or runs the pull request's code, or
+          secrets, tokens or write permissions reaching code from the pull request;
+        - a third-party action or reusable workflow not pinned to a full commit SHA, or a pin moved to a
+          branch or tag.
+    - path: "{**/*.{test,spec}.*,**/*_test.*,**/test_*.*,**/{test,tests,__tests__,__snapshots__,fixtures}/**,**/*.snap,**/{jest,vitest,playwright,karma,cypress}.config.*,**/bunfig.toml,**/pytest.ini,**/conftest.py,**/.nycrc*,**/codecov.yml}"
+      instructions: |
+        This file is a test, test data or test config. Raise a Major finding, naming the test and what it
+        stops proving, for any of:
+        - a test deleted, skipped or focused (`.skip`, `.only`, `xit`, `@pytest.mark.skip`, `t.Skip`), or
+          excluded from the run;
+        - an assertion removed, loosened (exact to partial match, a wider range, `toBeDefined` for a value)
+          or turned into a no-op, or an expected value changed to match new output with no reason given;
+        - a raised timeout, added retries or a longer wait that hides a failure instead of fixing it;
+        - lowered coverage thresholds, wider coverage excludes, or snapshots or fixtures rewritten to accept
+          a regression;
+        - a test changed in the same pull request as the code it checks so that it passes without that
+          code's behaviour being right: compare the old and new expectations with the code change.
+        A test removed together with the code it covered, or an expectation the code change makes right, is
+        not a weakening.
   pre_merge_checks:
     title:
       mode: warning
