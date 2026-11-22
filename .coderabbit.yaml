@@ -151,8 +151,9 @@ reviews:
         - narrowed `on:` triggers, `branches`, `paths` or `paths-ignore` that stop a check running on pull
           requests it covered before;
         - widened `permissions`, or a job without a `permissions` block that inherits write access;
-        - `pull_request_target` or `workflow_run` that checks out or runs the pull request's code, or
-          secrets, tokens or write permissions reaching code from the pull request;
+        - `pull_request_target` or `workflow_run` that runs the pull request's code (a build, script or
+          action from it) or lets it steer a privileged step, or secrets, tokens or write permissions
+          reaching code from the pull request; checking it out only to read as data is fine;
         - a third-party action or reusable workflow not pinned to a full commit SHA, or a pin moved to a
           branch or tag.
     - path: "{**/*.{test,spec}.*,**/*_test.*,**/test_*.*,**/{test,tests,__tests__,__snapshots__,fixtures}/**,**/*.snap,**/{jest,vitest,playwright,karma,cypress}.config.*,**/bunfig.toml,**/pytest.ini,**/conftest.py,**/.nycrc*,**/codecov.yml}"
